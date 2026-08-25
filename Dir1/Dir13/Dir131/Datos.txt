@@ -1,0 +1,4 @@
+Nombre: Victor Manuel
+Carrera: Ing. en Computación
+Realizará tesis/tesina : No
+

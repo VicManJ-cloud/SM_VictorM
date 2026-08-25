@@ -1,0 +1,18 @@
+1  sudo apt update && sudo apt upgrade -y
+    2  ls
+    3  cd Documentos
+    4  ls
+    5  ifconfig
+    6  sudo apt install net-tools
+    7  ls
+    8  cd SM_VictorM/
+    9  ls -a
+   10  sudo apt install openssh-server
+   11  clear
+   12  ls
+   13  git status
+   14  ifconfig
+   15  sudo systemctl sttatus ssh
+   16  sudo systemctl status ssh
+   17  ssh colmi@10.10.2.173
+   18  history
