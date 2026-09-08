@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+	    'velocity_publisher.py = basics.velocity_publisher:main',
+            'velocity_subscriber.py = basics.velocity_subscriber:main',
         ],
     },
 )
