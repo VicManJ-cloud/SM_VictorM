@@ -1,0 +1,5 @@
+robotics_ws/build/
+robotics_ws/install/
+robotics_ws/log/
+__pycache__/
+*.pyc
