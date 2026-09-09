@@ -76,8 +76,8 @@ datos llegan completos y en orden.
 
 Los nodos se desarrollaron dentro de un paquete de ROS 2 llamado `basics`, ubicado en el
 workspace `robotics_ws`. En este repositorio los scripts se entregan sueltos dentro de
-`src` para cumplir con la estructura solicitada, por lo que se documentan las dos formas
-de ejecutarlos.
+`src` para cumplir con la estructura solicitada, por lo que se documenta a continuación
+la forma de ejecutarlos desde el paquete.
 
 ### desde el paquete `basics`
 
@@ -201,7 +201,13 @@ evitarse envolviendo `rclpy.spin(node)` en un bloque `try/except KeyboardInterru
 
 ---
 
-## 5. Control de versiones
+## 5. Evidencia en video
+
+https://drive.google.com/file/d/1KU2068QJYkuXJSf9DigumxEfl-JWwXP0/view?usp=drive_link
+
+---
+
+## 6. Control de versiones
 
 | Commit | Contenido |
 |---|---|
@@ -209,4 +215,214 @@ evitarse envolviendo `rclpy.spin(node)` en un bloque `try/except KeyboardInterru
 | 2 | Suscriptor comentado y comprobación de funcionamiento. |
 | 3 | Documentación de la práctica. |
 
-https://drive.google.com/file/d/1KU2068QJYkuXJSf9DigumxEfl-JWwXP0/view?usp=drive_link
+---
+
+# Act2 - Pub y subs de velocidad Turtlesim
+
+## 1. Descripción de la actividad
+
+A partir de los nodos de la actividad anterior se generaron dos copias,
+`velocity_turtle_publisher.py` y `velocity_turtle_subscriber.py`, y se modificaron para
+mover la tortuga de turtlesim.
+
+El publicador manda la velocidad translacional de la tortuga empezando en 0.0, con un
+incremento de 0.1 cada medio segundo hasta llegar a 1.2, y al alcanzar ese valor la
+tortuga se detiene. El suscriptor escucha lo que publica ese nodo y muestra la velocidad
+en la terminal.
+
+> Nota: el enunciado menciona el nombre `velocity_turtle_pub.py`; en este repositorio el
+> archivo se entrega como `velocity_turtle_publisher.py`.
+
+---
+
+## 2. Modificaciones realizadas
+
+### En el publicador
+
+| Antes | Después | Motivo |
+|---|---|---|
+| `from std_msgs.msg import Float32` | `from geometry_msgs.msg import Twist` | Turtlesim solo entiende mensajes `Twist` para mover la tortuga. |
+| Nodo `velocity_publisher` | Nodo `velocity_turtle_publisher` | Dos nodos con el mismo nombre no se distinguen en el grafo. |
+| Tópico `/velocity` | Tópico `/turtle1/cmd_vel` | Es el tópico donde turtlesim escucha los comandos de movimiento. |
+| `create_timer(1.0, ...)` | `create_timer(0.5, ...)` | El incremento debe ocurrir cada medio segundo. |
+| `msg.data = self.Vel` | `msg.linear.x = self.Vel` | `Twist` es un mensaje compuesto; la velocidad translacional es `linear.x`. |
+| Rampa hasta 1.5 con reinicio | Rampa hasta 1.2 con bandera `detenido` | La tortuga debe detenerse al llegar al límite y no volver a acelerar. |
+
+El cambio de fondo está en la lógica de la rampa. En la actividad anterior el valor se
+reiniciaba en 0.0 y volvía a subir, formando un ciclo infinito. Aquí eso no sirve: al
+poner la velocidad en 0.0 la condición `self.Vel < 1.2` volvería a cumplirse y la
+tortuga arrancaría de nuevo. Por eso se agregó la bandera `self.detenido`, que al
+levantarse impide que el bloque vuelva a ejecutarse.
+
+También se agregó `msg.angular.z = 0.0` para que la tortuga avance en línea recta sin
+girar.
+
+Como el `publish()` ocurre antes de evaluar la rampa, el valor 1.2 sí alcanza a
+publicarse; lo que hace el `else` es dejar la velocidad en 0.0 para el siguiente ciclo.
+El nodo sigue publicando ceros en lugar de dejar de publicar, para que el tópico no
+quede mudo y se pueda seguir comprobando con `ros2 topic echo` y `ros2 topic hz`.
+
+### En el suscriptor
+
+| Antes | Después | Motivo |
+|---|---|---|
+| `from std_msgs.msg import Float32` | `from geometry_msgs.msg import Twist` | Debe coincidir con el tipo que usa el publicador. |
+| Nodo `velocity_subscriber` | Nodo `velocity_turtle_subscriber` | Para distinguirlo del nodo de la actividad anterior. |
+| Tópico `/velocity` | Tópico `/turtle1/cmd_vel` | Es donde publica el nuevo nodo publicador. |
+| `Velocity = msg.data` | `Velocity = msg.linear.x` | El dato ya no es un número suelto, sino un campo dentro del `Twist`. |
+
+---
+
+## 3. Funcionamiento
+
+| Elemento | Valor |
+|---|---|
+| Tópico | `/turtle1/cmd_vel` |
+| Tipo de mensaje | `geometry_msgs/msg/Twist` |
+| Profundidad de cola (QoS) | 10 |
+| Periodo de publicación | 0.5 s (2 Hz) |
+| Dato publicado | rampa de 0.0 a 1.2 en pasos de 0.1, después 0.0 permanente |
+
+`geometry_msgs/msg/Twist` es un mensaje compuesto: contiene dos vectores, `linear` y
+`angular`, cada uno con componentes `x`, `y`, `z`. La velocidad translacional
+corresponde a `linear.x` y el giro sobre el propio eje a `angular.z`. Su estructura se
+puede consultar con `ros2 interface show geometry_msgs/msg/Twist`.
+
+El publicador crea el publicador sobre `/turtle1/cmd_vel` y un temporizador de medio
+segundo. En cada llamada construye un `Twist`, le asigna la velocidad actual en
+`linear.x`, lo publica y avanza la rampa mientras la bandera `detenido` sea falsa.
+
+El suscriptor declara la suscripción al mismo tópico y con el mismo tipo de mensaje, y
+en su callback lee `msg.linear.x` para imprimirlo. No tiene temporizador ni ciclo
+propio: es reactivo, y el middleware ejecuta el callback cada vez que llega un mensaje.
+
+Un detalle importante de esta actividad es que `/turtle1/cmd_vel` termina con **dos
+suscriptores**: el nodo `turtlesim`, que mueve la tortuga, y
+`velocity_turtle_subscriber`, que imprime el dato. Esto muestra que un mismo tópico
+puede alimentar a varios nodos independientes sin que el publicador sepa quiénes son.
+
+---
+
+## 4. Comandos utilizados
+
+Registro de los nuevos ejecutables en `setup.py`:
+
+```python
+entry_points={
+    'console_scripts': [
+        'velocity_publisher.py = basics.velocity_publisher:main',
+        'velocity_subscriber.py = basics.velocity_subscriber:main',
+        'velocity_turtle_publisher.py = basics.velocity_turtle_publisher:main',
+        'velocity_turtle_subscriber.py = basics.velocity_turtle_subscriber:main',
+    ],
+},
+```
+
+Compilación:
+
+```bash
+cd ~/Documentos/SM_VictorM/robotics_ws
+colcon build
+ls install/basics/lib/basics/
+```
+
+Ejecución, cada nodo en su propia terminal y con el entorno cargado en todas:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/Documentos/SM_VictorM/robotics_ws/install/setup.bash
+```
+
+```bash
+# Terminal 1: simulador
+ros2 run turtlesim turtlesim_node
+
+# Terminal 2: publicador
+ros2 run basics velocity_turtle_publisher.py
+
+# Terminal 3: suscriptor
+ros2 run basics velocity_turtle_subscriber.py
+```
+
+### Comprobación del funcionamiento
+
+Desde una cuarta terminal:
+
+```bash
+# Nodos activos: turtlesim, publicador y suscriptor
+ros2 node list
+
+# Tópicos activos con su tipo de mensaje
+ros2 topic list -t
+
+# Publicadores y suscriptores del tópico: debe reportar 2 suscriptores
+ros2 topic info /turtle1/cmd_vel
+ros2 topic info /turtle1/cmd_vel --verbose
+
+# Detalle del nodo suscriptor
+ros2 node info /velocity_turtle_subscriber
+
+# Estructura del mensaje utilizado
+ros2 interface show geometry_msgs/msg/Twist
+
+# Contenido de los mensajes que viajan por el tópico
+ros2 topic echo /turtle1/cmd_vel
+
+# Frecuencia real de publicación (debe rondar 2 Hz)
+ros2 topic hz /turtle1/cmd_vel
+```
+
+### Grafo de ROS
+
+```bash
+ros2 run rqt_graph rqt_graph
+```
+
+En el grafo se observa `/velocity_turtle_publisher` publicando en `/turtle1/cmd_vel`, y
+de ese tópico salen dos flechas: una hacia `/turtlesim` y otra hacia
+`/velocity_turtle_subscriber`.
+
+---
+
+## 5. Problemas encontrados y soluciones
+
+**`msg = Twist` sin paréntesis.**
+Al escribir el mensaje sin los paréntesis se estaba asignando la clase en lugar de crear
+una instancia, por lo que la asignación de `linear.x` no correspondía a ningún mensaje.
+Se corrigió con `msg = Twist()`, que es lo que ejecuta el constructor.
+
+**`NameError` al ejecutar los nodos nuevos.**
+Como los archivos se generaron copiando los originales, en la función `main` quedó el
+nombre de la clase anterior (`VelocityPublisher` y `VelocitySubscriber`). El error no
+aparece al validar con `python3 -m py_compile`, porque Python resuelve los nombres hasta
+la ejecución. Se corrigió usando `VelocityTurtlePublisher` y `VelocityTurtleSubscriber`.
+
+**El grafo de `rqt_graph` aparecía vacío y después saturado.**
+La primera vez solo se veía el nodo del propio rqt, porque los nodos no estaban
+corriendo al abrirlo. Al levantarlos y refrescar aparecieron todos, pero junto con los
+tópicos internos de ROS y los de acción de turtlesim, que hacían ilegible el diagrama.
+Se resolvió levantando los nodos antes de abrir la herramienta y filtrando con las
+casillas *Debug*, *Dead sinks*, *Leaf topics* y desmarcando *Actions*.
+
+**Los cambios no se reflejaban al ejecutar.**
+`ros2 run` no ejecuta el archivo que se edita, sino la copia instalada en `install/`. Se
+resolvió copiando los archivos al paquete y volviendo a correr `colcon build` antes de
+cada prueba.
+
+---
+
+## 6. Evidencia en video
+
+**Enlace:** `<pegar aquí la liga del video de la actividad 2>`
+
+---
+
+## 7. Control de versiones
+
+| Commit | Contenido |
+|---|---|
+| 1 | Copias de los scripts originales con los nuevos nombres. |
+| 2 | Nodos de la tortuga funcionando y comprobados. |
+| 3 | Documentación de la actividad. |
+
+

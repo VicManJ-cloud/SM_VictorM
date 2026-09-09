@@ -21,7 +21,8 @@ class VelocityTurtlePublisher(Node):
         # el tamano de cola es la cantidad de mensajes que se guardan, en este caso 10
         self.publisher_ = self.create_publisher(Twist,'/turtle1/cmd_vel',10)
 
-        # Velocidad inicial del valor por publicar, se incrementa en cada publicacion
+        # Velocidad inicial del valor por publicar, se va incrementando en cada
+        # publicacion hasta que la tortuga se detiene
         self.Vel = 0.0
 
         # Bandera que indica si la tortuga ya llego a 1.2 y se detuvo.
@@ -43,15 +44,19 @@ class VelocityTurtlePublisher(Node):
         msg.angular.z = 0.0
 
         # Se envia el mensaje al topico /turtle1/cmd_vel y de ahi llega a
-        # turtlesim y a los demas nodos suscritos
+        # turtlesim y a los demas nodos suscritos.
+        # El nodo sigue publicando aunque la velocidad ya sea 0.0, asi el
+        # topico no se queda mudo y se puede seguir comprobando con
+        # ros2 topic echo y ros2 topic hz
         self.publisher_.publish(msg)
 
         # Imprime en la terminal el valor de lo que se publica
         self.get_logger().info(f'Vel = {self.Vel}')
 
         # Se incrementa la velocidad de 0.1 en 0.1 hasta llegar a 1.2.
-        # Al llegar a ese valor se manda 0.0 y se levanta la bandera, para que
-        # la tortuga se detenga y ya no vuelva a acelerar
+        # Como el publish ya paso, el 1.2 si alcanza a mandarse; lo que hace el
+        # else es dejar la velocidad en 0.0 para el siguiente ciclo y levantar
+        # la bandera, para que la tortuga se detenga y ya no vuelva a acelerar
         if not self.detenido:
             if self.Vel < 1.2:
                 self.Vel = round(self.Vel + 0.1, 1)
