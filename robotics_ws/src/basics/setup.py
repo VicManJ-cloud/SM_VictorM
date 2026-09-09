@@ -26,6 +26,8 @@ setup(
         'console_scripts': [
 	    'velocity_publisher.py = basics.velocity_publisher:main',
             'velocity_subscriber.py = basics.velocity_subscriber:main',
+            'velocity_turtle_publisher.py = basics.velocity_turtle_publisher:main',
+            'velocity_turtle_subscriber.py = basics.velocity_turtle_subscriber:main',
         ],
     },
 )
