@@ -425,4 +425,196 @@ cada prueba.
 | 2 | Nodos de la tortuga funcionando y comprobados. |
 | 3 | Documentación de la actividad. |
 
+---
 
+# Act3-Publicador y publicador serial
+
+## 1. Descripción de la actividad
+
+En esta actividad se integró una tarjeta ESP32 al entorno de ROS 2 a través de la
+comunicación por puerto serie, trabajando los ejemplos vistos en clase.
+
+El repositorio se reorganizó en dos directorios: `basics/`, con los nodos de ROS 2, y
+`colmibot_firmware/esp32_basics/`, con los sketches de Arduino y los scripts de Python
+que hablan directamente con la tarjeta.
+
+## 2. Preparación del entorno
+
+Se instaló el Arduino IDE 2.3.10 como AppImage y, desde el Board Manager, el paquete
+**esp32 by Espressif Systems**. La tarjeta utilizada se selecciona en el IDE como
+*DOIT ESP32 DEVKIT V1* y aparece en Linux como el puerto `/dev/ttyUSB0`.
+
+```bash
+# Verificar que el sistema reconoce la tarjeta
+ls /dev/ttyUSB*
+
+# Permiso para escribir en el puerto serie (requiere cerrar sesión)
+sudo usermod -aG dialout $USER
+groups | grep dialout
+
+# Biblioteca de Python para el puerto serie
+sudo apt install python3-serial
+```
+
+---
+
+## 3. Ejemplo del LED
+
+En este ejemplo la información va de la computadora hacia el hardware: ROS 2 manda
+comandos de encendido y apagado y la ESP32 los ejecuta sobre un LED.
+
+Se comprobó en tres niveles, uno sobre otro. Esto permite aislar en qué capa está una
+falla si algo no funciona.
+
+### Nivel 1: el sketch en la ESP32
+
+`LED_Serial.ino` es el único código que no corre en la computadora, sino dentro del
+microcontrolador. Define el GPIO 2, donde está el LED azul integrado de la tarjeta, lo
+configura como salida e inicia el puerto serie a 115200 baudios.
+
+En el `loop()` revisa con `Serial.available()` si hay bytes esperando en el buffer de
+entrada. Si los hay, lee un carácter y lo compara: si es `'1'` pone el pin en alto y el
+LED enciende, si es `'0'` lo pone en bajo y se apaga. La comparación es contra el
+carácter y no contra el número entero.
+
+La comprobación de este nivel se hizo desde el Serial Monitor del IDE, configurado a
+115200, escribiendo 1 y 0 a mano.
+
+### Nivel 2: Python sin ROS
+
+`serial_led.py` hace lo mismo que el Serial Monitor, pero desde Python. Abre el puerto
+con la biblioteca pyserial y, en un ciclo, pide al usuario que escriba 1, 0 o q, y envía
+el carácter correspondiente como bytes.
+
+Tiene una pausa de dos segundos después de abrir el puerto: al establecerse la conexión
+serie la ESP32 se reinicia, y sin esa espera los primeros comandos se pierden mientras
+la tarjeta arranca.
+
+### Nivel 3: los nodos de ROS 2
+
+Aquí la comunicación pasa por un tópico, lo que separa la lógica del control de la
+lógica del hardware.
+
+| Elemento | Valor |
+|---|---|
+| Tópico | `/led_command` |
+| Tipo de mensaje | `std_msgs/msg/Int32` |
+| Profundidad de cola (QoS) | 10 |
+| Periodo de publicación | 1.0 s |
+
+Se usa `Int32` porque el comando solo necesita ser 1 o 0; no hace falta un flotante ni
+un mensaje compuesto.
+
+**`led_blink.py`** publica el estado del LED en `/led_command`. Arranca con el estado en
+1 y un temporizador de un segundo que invierte ese valor en cada llamada, de modo que el
+ciclo completo de parpadeo dura dos segundos. El constructor publica una primera vez
+antes de que el temporizador entre en acción, para que el LED responda de inmediato y no
+después del primer segundo.
+
+**`serial_bridge.py`** es el puente entre ROS y el hardware. Se suscribe a
+`/led_command` y abre el puerto serie. Cada vez que llega un mensaje, traduce el entero
+recibido al carácter equivalente y lo escribe en el puerto: el mensaje trae el número 1,
+pero lo que viaja por el cable es el carácter `'1'`, que es lo que el sketch espera.
+
+Lo importante de esta separación es que `led_blink.py` no sabe nada de la ESP32 ni del
+puerto serie: solo publica números en un tópico. Se podría cambiar la tarjeta o la forma
+de conectarla modificando únicamente el puente, sin tocar el nodo que genera los
+comandos.
+
+### Comandos utilizados
+
+```bash
+# Compilación del paquete
+cd ~/Documentos/SM_VictorM/robotics_ws
+colcon build
+ls install/basics/lib/basics/
+
+# En cada terminal
+source /opt/ros/jazzy/setup.bash
+source ~/Documentos/SM_VictorM/robotics_ws/install/setup.bash
+```
+
+```bash
+# Terminal 1: el puente, se levanta primero porque es quien abre el puerto
+ros2 run basics serial_bridge.py
+
+# Terminal 2: el nodo que publica el parpadeo
+ros2 run basics led_blink.py
+```
+
+Comprobación desde una tercera terminal:
+
+```bash
+# Nodos activos: /led_blink y /serial_bridge
+ros2 node list
+
+# Tópicos con su tipo de mensaje
+ros2 topic list -t
+
+# Publicadores y suscriptores del tópico
+ros2 topic info /led_command
+ros2 topic info /led_command --verbose
+
+# Detalle del nodo puente
+ros2 node info /serial_bridge
+
+# Contenido de los mensajes
+ros2 topic echo /led_command
+
+# Frecuencia de publicación
+ros2 topic hz /led_command
+
+# Grafo de comunicación
+ros2 run rqt_graph rqt_graph
+```
+
+En el grafo se observa `/led_blink` publicando en `/led_command` y `/serial_bridge`
+suscrito a ese tópico.
+
+También se comprobó publicando el comando de forma manual, con el nodo `led_blink`
+detenido:
+
+```bash
+ros2 topic pub --once /led_command std_msgs/msg/Int32 "{data: 1}"
+```
+
+El LED enciende y permanece encendido, lo que confirma que el puente responde a
+cualquier publicador y no solo al nodo del parpadeo.
+
+### Problemas encontrados y soluciones
+
+**`Permission denied: '/dev/ttyUSB0'` al subir el sketch.**
+La tarjeta era reconocida por el sistema, pero el usuario no pertenecía al grupo
+`dialout`, que es el que tiene permiso de escritura sobre los puertos serie. Se resolvió
+con `sudo usermod -aG dialout $USER`. El cambio no surte efecto hasta cerrar sesión y
+volver a entrar, porque los grupos se asignan al iniciar sesión; como solución temporal
+puede usarse `sudo chmod 666 /dev/ttyUSB0`.
+
+**El Arduino IDE no abría por un error de sandbox.**
+El AppImage está basado en Electron, y Ubuntu 24.04 restringe la creación de espacios de
+nombres de usuario sin privilegios, que es lo que el sandbox necesita. Se resolvió
+ejecutándolo con la opción `--no-sandbox`.
+
+**`IndentationError` en `setup.py` al compilar.**
+Al agregar los nuevos ejecutables, el bloque `entry_points` quedó duplicado y colocado
+después del paréntesis que cierra la llamada a `setup()`, lo que dejó código indentado
+fuera de cualquier bloque. Se resolvió reescribiendo el archivo con un solo bloque.
+
+**`IndentationError` en `led_blink.py`.**
+El archivo tenía la última línea de `main()` con tres espacios en lugar de cuatro. Se
+corrigió unificando la indentación.
+
+**`SyntaxError` al comentar el código.**
+A una línea de comentario se le olvidó el `#` inicial, y Python intentó interpretarla
+como código. A diferencia de Arduino, que tiene `/* */` para bloques, en Python cada
+línea de comentario necesita su propio símbolo. Para detectar este tipo de errores sin
+tener que recompilar todo el paquete se usó `python3 -m py_compile archivo.py`.
+
+**Los cambios no se reflejaban al ejecutar.**
+`ros2 run` no ejecuta los archivos que se editan en el repositorio, sino la copia
+instalada en `install/`. Cada vez que se modifica un nodo hay que copiarlo al paquete y
+volver a correr `colcon build`.
+
+### Evidencia en video
+
+**Enlace:** `<pegar aquí la liga del video del ejemplo del LED>`
