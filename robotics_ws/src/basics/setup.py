@@ -24,10 +24,14 @@ setup(
     },
     entry_points={
         'console_scripts': [
-	    'velocity_publisher.py = basics.velocity_publisher:main',
+            'velocity_publisher.py = basics.velocity_publisher:main',
             'velocity_subscriber.py = basics.velocity_subscriber:main',
-            'velocity_turtle_publisher.py = basics.velocity_turtle_publisher:main',
-            'velocity_turtle_subscriber.py = basics.velocity_turtle_subscriber:main',
+            'velocity_turtle_pub.py = basics.velocity_turtle_pub:main',
+            'velocity_turtle_subs.py = basics.velocity_turtle_subs:main',
+            'led_blink.py = basics.led_blink:main',
+            'serial_bridge.py = basics.serial_bridge:main',
+            'analog_serial_pub.py = basics.analog_serial_pub:main',
+            'analog_subs.py = basics.analog_subs:main',
         ],
     },
 )

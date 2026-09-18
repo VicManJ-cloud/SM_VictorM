@@ -4,10 +4,12 @@
   <name>basics</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="victor.itam.mx@gmail.com">vick</maintainer>
+  <maintainer email="villalobos@fvb.one">fvillalobos</maintainer>
   <license>TODO: License declaration</license>
+
   <depend>rclpy</depend>
-  <depend>std_std_msg</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
@@ -18,3 +20,5 @@
     <build_type>ament_python</build_type>
   </export>
 </package>
+
+
