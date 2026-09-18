@@ -617,4 +617,153 @@ volver a correr `colcon build`.
 
 ### Evidencia en video
 
-**Enlace:** `<pegar aquí la liga del video del ejemplo del LED>`
+**Enlace:** [Video del ejemplo del LED](https://drive.google.com/file/d/1qnMKwCRMwNu4t9Ia2L7cUFXtskBHE2zh/view?usp=drive_link)
+---
+
+## 4. Ejemplo del potenciómetro
+
+En este ejemplo la información va en sentido contrario al anterior: el dato nace en el
+hardware y llega a ROS 2. La ESP32 lee un valor analógico y lo envía por el puerto
+serie, y del lado de la computadora se publica en un tópico.
+
+Se comprobó con los mismos tres niveles que el ejemplo del LED.
+
+### Conexión
+
+El potenciómetro se conecta con la pata de en medio al GPIO 15 y las de los extremos a
+3.3 V y GND. Las dos patas de los extremos son intercambiables; lo único que cambia es
+hacia qué lado sube el valor al girar la perilla.
+
+### Nivel 1: el sketch en la ESP32
+
+`ADC_Pot.ino` define el GPIO 15 como entrada del potenciómetro e inicia el puerto serie
+a 115200 baudios. Las entradas analógicas no necesitan `pinMode`, a diferencia de las
+salidas digitales del ejemplo anterior.
+
+En el `loop()`, `analogRead()` convierte el voltaje presente en el pin a un número
+entero. El convertidor analógico-digital de la ESP32 es de 12 bits, así que el rango va
+de 0 a 4095: 0 V da 0 y 3.3 V da 4095.
+
+El valor se envía con `Serial.println()`, que además del número agrega un salto de
+línea. Ese salto es lo que permite separar un valor del siguiente cuando se leen del
+otro lado; sin él llegaría una cadena continua de dígitos imposible de interpretar.
+
+El `delay(100)` da aproximadamente diez lecturas por segundo. Sin esa pausa la tarjeta
+saturaría el puerto con miles de valores.
+
+La comprobación de este nivel se hizo desde el Serial Monitor del IDE a 115200,
+confirmando que al girar la perilla los valores recorren todo el rango de 0 a 4095. Una
+variación de unas pocas unidades con el potenciómetro quieto es normal: es ruido
+eléctrico propio de cualquier lectura analógica.
+
+### Nivel 2: Python sin ROS
+
+`serial_pot.py` abre el puerto y en un ciclo lee lo que llega. La línea central del
+script encadena tres operaciones, que son el camino inverso de lo que se hacía en el
+ejemplo del LED:
+
+```python
+linea = esp32.readline().decode().strip()
+```
+
+`readline()` lee bytes hasta encontrar el salto de línea que agregó el `println` del
+sketch, `decode()` convierte esos bytes a texto, y `strip()` elimina el salto y los
+espacios sobrantes, dejando solo los dígitos.
+
+El `if linea:` posterior evita imprimir líneas en blanco: si se cumple el timeout de un
+segundo sin que llegue nada, `readline()` devuelve una cadena vacía.
+
+### Nivel 3: los nodos de ROS 2
+
+| Elemento | Valor |
+|---|---|
+| Tópico | `/analog` |
+| Tipo de mensaje | `std_msgs/msg/Int32` |
+| Profundidad de cola (QoS) | 10 |
+| Periodo del temporizador | 0.01 s |
+| Frecuencia real de publicación | ~10 Hz |
+
+Se usa `Int32` porque la lectura del ADC es un entero sin decimales.
+
+**`analog_serial_pub.py`** es el puente, pero en dirección opuesta a `serial_bridge.py`:
+en lugar de escribir al puerto, lo lee. Abre el puerto serie y registra un temporizador
+que se ejecuta cada 10 ms. En cada llamada revisa con `in_waiting` si hay bytes
+esperando en el buffer; si los hay, lee la línea, verifica con `isdigit()` que sean
+puros números (lo que descarta basura o líneas incompletas), la convierte a entero y la
+publica en `/analog`.
+
+El temporizador corre cien veces por segundo, pero la frecuencia real de publicación es
+de unas diez, porque es el ritmo al que la ESP32 manda datos. Revisar el puerto más
+seguido de lo que llega el dato evita que se acumule retraso en el buffer.
+
+**`analog_subs.py`** solo se suscribe a `/analog` e imprime el valor recibido. No sabe
+nada del puerto serie ni de la ESP32: para él la fuente del dato es indiferente.
+
+Cabe señalar que el nodo se registra con el nombre `analog_subscriber`, que no coincide
+con el nombre del archivo, tal como viene en el código visto en clase. Lo que aparece en
+`ros2 node list` es el nombre del nodo, no el del archivo.
+
+### Comandos utilizados
+
+```bash
+# En cada terminal
+source /opt/ros/jazzy/setup.bash
+source ~/Documentos/SM_VictorM/robotics_ws/install/setup.bash
+```
+
+```bash
+# Terminal 1: el publicador, se levanta primero porque es quien abre el puerto
+ros2 run basics analog_serial_pub.py
+
+# Terminal 2: el suscriptor
+ros2 run basics analog_subs.py
+```
+
+Comprobación desde una tercera terminal:
+
+```bash
+# Nodos activos: /analog_serial_pub y /analog_subscriber
+ros2 node list
+
+# Tópicos con su tipo de mensaje
+ros2 topic list -t
+
+# Publicadores y suscriptores del tópico
+ros2 topic info /analog
+ros2 topic info /analog --verbose
+
+# Detalle del nodo suscriptor
+ros2 node info /analog_subscriber
+
+# Contenido de los mensajes
+ros2 topic echo /analog
+
+# Frecuencia real de publicación
+ros2 topic hz /analog
+
+# Grafo de comunicación
+ros2 run rqt_graph rqt_graph
+```
+
+En el grafo se observa `/analog_serial_pub` publicando en `/analog` y
+`/analog_subscriber` suscrito a ese tópico.
+
+### Problemas encontrados y soluciones
+
+**El archivo `ADC_Pot.ino` estaba incompleto.**
+Al copiarlo faltaba la llave de cierre de la función `loop()`, por lo que el sketch no
+compilaba. Se resolvió agregándola.
+
+**El puerto serie solo admite un proceso a la vez.**
+Al intentar correr los nodos con el Serial Monitor del IDE todavía abierto, o con
+`serial_pot.py` en ejecución, el puerto aparece ocupado. Hay que cerrar el proceso
+anterior antes de levantar el siguiente.
+
+**La frecuencia medida no correspondía al temporizador.**
+`ros2 topic hz /analog` reporta alrededor de 10 Hz aunque el temporizador del nodo esté
+configurado a 100 Hz. No es un error: el nodo solo publica cuando hay datos en el
+puerto, y quien marca el ritmo real es el `delay(100)` del sketch.
+
+### Evidencia en video
+
+**Enlace:** [Video del ejemplo del potenciómetro](https://drive.google.com/file/d/1CdxGgUXTdYfajxs87hcphMLrhs7PaWYN/view?usp=drive_link)
