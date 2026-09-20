@@ -33,6 +33,7 @@ setup(
             'analog_serial_pub.py = basics.analog_serial_pub:main',
             'analog_subs.py = basics.analog_subs:main',
             'joystick_serial_pub.py = basics.joystick_serial_pub:main',
+            'turtle_controller.py = basics.turtle_controller:main',
         ],
     },
 )
