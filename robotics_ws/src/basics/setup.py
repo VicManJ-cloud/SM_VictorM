@@ -32,6 +32,7 @@ setup(
             'serial_bridge.py = basics.serial_bridge:main',
             'analog_serial_pub.py = basics.analog_serial_pub:main',
             'analog_subs.py = basics.analog_subs:main',
+            'joystick_serial_pub.py = basics.joystick_serial_pub:main',
         ],
     },
 )
