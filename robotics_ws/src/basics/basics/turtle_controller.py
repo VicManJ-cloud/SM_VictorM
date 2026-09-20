@@ -6,7 +6,7 @@ from geometry_msgs.msg import Point
 from geometry_msgs.msg import Twist
 
 
-#este nodo recibe los valores crudos del joystick y los convierte en
+#este nodo recibe los valores directos del joystick y los convierte en
 #velocidades para la tortuga
 class TurtleController(Node):
     def __init__(self):
@@ -20,23 +20,26 @@ class TurtleController(Node):
         self.publisher_ = self.create_publisher(Twist, '/turtle1/cmd_vel', 10)
 
         #valores de reposo medidos con el joystick sin tocar, no son
-        #2048 porque el modulo no queda centrado de fabrica
+        #2048 porque el modulo no queda centrado por default
         self.centro_x = 1890
         self.centro_y = 1828
 
         #zona muerta en unidades del ADC, si la lectura se aleja menos
-        #que esto del centro se toma como cero
+        #que esto del centro se toma como cero ya que las mediciones
+        #se pone 100 por que hay variaciones de 60  puntos
         self.zona_muerta = 100
 
         #velocidades maximas, la tortuga llega a estas cuando el
         #joystick esta en el tope
-        self.vel_lineal_max = 10.0
-        self.vel_angular_max = 10.0
+        self.vel_lineal_max = 2.0
+        self.vel_angular_max = 2.0
 
         self.get_logger().info('Controlador listo, esperando joystick')
 
-    #convierte una lectura del ADC en un valor de -1.0 a 1.0
+    #convierte una lectura del ADC del ESP32
+     # en un valor de -1.0 a 1.0
     def normalizar(self, valor, centro, vel_max):
+        #primero calculamos cual seria el centro
         #distancia del centro, positiva o negativa segun el lado
         desviacion = valor - centro
 
