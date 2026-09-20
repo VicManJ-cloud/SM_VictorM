@@ -432,7 +432,7 @@ cada prueba.
 ## 1. Descripción de la actividad
 
 En esta actividad se integró una tarjeta ESP32 al entorno de ROS 2 a través de la
-comunicación por puerto serie, trabajando los ejemplos vistos en clase.
+comunicación por puerto serial, trabajando los ejemplos vistos en clase.
 
 El repositorio se reorganizó en dos directorios: `basics/`, con los nodos de ROS 2, y
 `colmibot_firmware/esp32_basics/`, con los sketches de Arduino y los scripts de Python
@@ -448,11 +448,11 @@ Se instaló el Arduino IDE 2.3.10 como AppImage y, desde el Board Manager, el pa
 # Verificar que el sistema reconoce la tarjeta
 ls /dev/ttyUSB*
 
-# Permiso para escribir en el puerto serie (requiere cerrar sesión)
+# Permiso para escribir en el puerto serial (requiere cerrar sesión)
 sudo usermod -aG dialout $USER
 groups | grep dialout
 
-# Biblioteca de Python para el puerto serie
+# Biblioteca de Python para el puerto serial
 sudo apt install python3-serial
 ```
 
@@ -470,7 +470,7 @@ falla si algo no funciona.
 
 `LED_Serial.ino` es el único código que no corre en la computadora, sino dentro del
 microcontrolador. Define el GPIO 2, donde está el LED azul integrado de la tarjeta, lo
-configura como salida e inicia el puerto serie a 115200 baudios.
+configura como salida e inicia el puerto serial a 115200 baudios.
 
 En el `loop()` revisa con `Serial.available()` si hay bytes esperando en el buffer de
 entrada. Si los hay, lee un carácter y lo compara: si es `'1'` pone el pin en alto y el
@@ -487,7 +487,7 @@ con la biblioteca pyserial y, en un ciclo, pide al usuario que escriba 1, 0 o q,
 el carácter correspondiente como bytes.
 
 Tiene una pausa de dos segundos después de abrir el puerto: al establecerse la conexión
-serie la ESP32 se reinicia, y sin esa espera los primeros comandos se pierden mientras
+serial con la ESP32 se reinicia, y sin esa espera los primeros comandos se pierden mientras
 la tarjeta arranca.
 
 ### Nivel 3: los nodos de ROS 2
@@ -512,12 +512,12 @@ antes de que el temporizador entre en acción, para que el LED responda de inmed
 después del primer segundo.
 
 **`serial_bridge.py`** es el puente entre ROS y el hardware. Se suscribe a
-`/led_command` y abre el puerto serie. Cada vez que llega un mensaje, traduce el entero
+`/led_command` y abre el puerto serial. Cada vez que llega un mensaje, traduce el entero
 recibido al carácter equivalente y lo escribe en el puerto: el mensaje trae el número 1,
 pero lo que viaja por el cable es el carácter `'1'`, que es lo que el sketch espera.
 
 Lo importante de esta separación es que `led_blink.py` no sabe nada de la ESP32 ni del
-puerto serie: solo publica números en un tópico. Se podría cambiar la tarjeta o la forma
+puerto serial: solo publica números en un tópico. Se podría cambiar la tarjeta o la forma
 de conectarla modificando únicamente el puente, sin tocar el nodo que genera los
 comandos.
 
@@ -585,7 +585,7 @@ cualquier publicador y no solo al nodo del parpadeo.
 
 **`Permission denied: '/dev/ttyUSB0'` al subir el sketch.**
 La tarjeta era reconocida por el sistema, pero el usuario no pertenecía al grupo
-`dialout`, que es el que tiene permiso de escritura sobre los puertos serie. Se resolvió
+`dialout`, que es el que tiene permiso de escritura sobre los puertos seriales. Se resolvió
 con `sudo usermod -aG dialout $USER`. El cambio no surte efecto hasta cerrar sesión y
 volver a entrar, porque los grupos se asignan al iniciar sesión; como solución temporal
 puede usarse `sudo chmod 666 /dev/ttyUSB0`.
@@ -624,7 +624,7 @@ volver a correr `colcon build`.
 
 En este ejemplo la información va en sentido contrario al anterior: el dato nace en el
 hardware y llega a ROS 2. La ESP32 lee un valor analógico y lo envía por el puerto
-serie, y del lado de la computadora se publica en un tópico.
+serial, y del lado de la computadora se publica en un tópico.
 
 Se comprobó con los mismos tres niveles que el ejemplo del LED.
 
@@ -636,7 +636,7 @@ hacia qué lado sube el valor al girar la perilla.
 
 ### Nivel 1: el sketch en la ESP32
 
-`ADC_Pot.ino` define el GPIO 15 como entrada del potenciómetro e inicia el puerto serie
+`ADC_Pot.ino` define el GPIO 15 como entrada del potenciómetro e inicia el puerto serial
 a 115200 baudios. Las entradas analógicas no necesitan `pinMode`, a diferencia de las
 salidas digitales del ejemplo anterior.
 
@@ -686,7 +686,7 @@ segundo sin que llegue nada, `readline()` devuelve una cadena vacía.
 Se usa `Int32` porque la lectura del ADC es un entero sin decimales.
 
 **`analog_serial_pub.py`** es el puente, pero en dirección opuesta a `serial_bridge.py`:
-en lugar de escribir al puerto, lo lee. Abre el puerto serie y registra un temporizador
+en lugar de escribir al puerto, lo lee. Abre el puerto serial y registra un temporizador
 que se ejecuta cada 10 ms. En cada llamada revisa con `in_waiting` si hay bytes
 esperando en el buffer; si los hay, lee la línea, verifica con `isdigit()` que sean
 puros números (lo que descarta basura o líneas incompletas), la convierte a entero y la
@@ -697,7 +697,7 @@ de unas diez, porque es el ritmo al que la ESP32 manda datos. Revisar el puerto 
 seguido de lo que llega el dato evita que se acumule retraso en el buffer.
 
 **`analog_subs.py`** solo se suscribe a `/analog` e imprime el valor recibido. No sabe
-nada del puerto serie ni de la ESP32: para él la fuente del dato es indiferente.
+nada del puerto serial ni de la ESP32: para él la fuente del dato es indiferente.
 
 Cabe señalar que el nodo se registra con el nombre `analog_subscriber`, que no coincide
 con el nombre del archivo, tal como viene en el código visto en clase. Lo que aparece en
@@ -754,7 +754,7 @@ En el grafo se observa `/analog_serial_pub` publicando en `/analog` y
 Al copiarlo faltaba la llave de cierre de la función `loop()`, por lo que el sketch no
 compilaba. Se resolvió agregándola.
 
-**El puerto serie solo admite un proceso a la vez.**
+**El puerto serial solo admite un proceso a la vez.**
 Al intentar correr los nodos con el Serial Monitor del IDE todavía abierto, o con
 `serial_pot.py` en ejecución, el puerto aparece ocupado. Hay que cerrar el proceso
 anterior antes de levantar el siguiente.
@@ -767,3 +767,292 @@ puerto, y quien marca el ritmo real es el `delay(100)` del sketch.
 ### Evidencia en video
 
 **Enlace:** [Video del ejemplo del potenciómetro](https://drive.google.com/file/d/1CdxGgUXTdYfajxs87hcphMLrhs7PaWYN/view?usp=drive_link)
+
+
+
+
+
+---
+
+# Act4-Turtle_Controller
+
+## 1. Descripción de la actividad
+
+En esta actividad se integró lo visto en las anteriores para construir un sistema que
+controla la tortuga de Turtlesim con un joystick físico de dos ejes conectado a una
+ESP32.
+
+El sistema consta de tres etapas:
+
+1. **Lectura**: la ESP32 lee los dos ejes analógicos del joystick y envía los
+   valores por el puerto serial.
+2. **Publicación**: un nodo de ROS 2 lee el puerto serial y publica los valores crudos en
+   un tópico, sin enviar nada a Turtlesim.
+3. **Control**: un segundo nodo se suscribe a ese tópico, convierte las lecturas en
+   velocidades lineal y angular, y las publica al tópico que mueve la tortuga.
+
+Las tres etapas están separadas, lo que permite que cada pieza sea independiente: el
+nodo publicador no sabe qué se hará con los datos, y el nodo de control no sabe de dónde
+vienen.
+
+## 2. Hardware y asignación de pines
+
+El módulo utilizado es un joystick de dos ejes **HW-504**, que internamente son dos
+potenciómetros con retorno a centro por resorte.
+
+| Pin del módulo | Pin de la ESP32 | Justificación |
+|---|---|---|
+| GND | GND | Referencia común |
+| +5V | **3.3v** | El ADC de la ESP32 no tolera más de 3.3 V en sus entradas |
+| VRx | **GPIO 34** (ADC1_6) | Canal del ADC1, disponible siempre y pin de solo entrada |
+| VRy | **GPIO 35** (ADC1_7) | Canal del ADC1, disponible siempre y pin de solo entrada |
+| SW | sin conectar | El pulsador no se utiliza en esta actividad |
+
+Se eligieron GPIO 34 y GPIO 35 porque, de acuerdo con el diagrama de pines proporcionado, 
+ambos cuentan con canal ADC (ADC1_6 y ADC1_7) y son pines de solo entrada, 
+sin funciones alternas que pudieran interferir con la lectura.
+
+
+## 3. Calibración medida
+
+Antes de escribir los nodos se midieron los valores reales del joystick con el Serial
+Monitor:
+
+| Medición | Eje X | Eje Y |
+|---|---|---|
+| Reposo (centro real) | ~1890 | ~1828 |
+| Fluctuación en reposo | ~12 unidades | ~8 unidades |
+| Extremo mínimo | 0 (izquierda) | 0 (arriba) |
+| Extremo máximo | 4095 (derecha) | 4095 (abajo) |
+
+Dos observaciones importantes que salieron de aquí:
+
+**El centro no es 2048.** Aunque el rango del ADC de 12 bits va de 0 a 4095 y su punto
+medio sería 2048, el joystick sin mover se queda en alrededor de 1890 y 1828. Si se hubiera
+usado 2048 como referencia, la tortuga se movería sola aun con la palanca sin tocar.
+
+**El recorrido no es simétrico.** Con el centro en 1890, hacia el máximo quedan 2205
+unidades y hacia el mínimo solo 1890. Por eso el cálculo de velocidad escala cada lado
+con su propio rango; de otro modo la tortuga alcanzaría distinta velocidad máxima según
+la dirección.
+
+## 4. Archivos generados
+
+### `joystick.ino`
+
+Define los dos pines, inicia el puerto serial a 115200 baudios y en cada ciclo lee ambos
+ejes con `analogRead()`, que devuelve un entero de 0 a 4095.
+
+Los dos valores se envían en una sola línea separados por coma (`1890,1828`) y
+terminados con `println`, que agrega el salto de línea. Ese formato permite que del lado
+de Python se separen con un `split(',')` y que cada lectura quede delimitada.
+
+Se eligió enviar una lectura cada 50 ms, es decir 20 por segundo. Si se mandaran más seguido, 
+llegarían más datos de los que los nodos alcanzan a procesar y se irían acumulando. Si se mandaran 
+más espaciados, se notaría un retraso entre mover la palanca y ver reaccionar a la tortuga.
+
+### `joystick_serial_pub.py`
+
+| Elemento | Valor |
+|---|---|
+| Nombre del nodo | `joystick_serial_pub` |
+| Tópico publicado | `/joystick_raw` |
+| Tipo de mensaje | `geometry_msgs/msg/Point` |
+| Profundidad de cola (QoS) | 10 |
+
+Abre el puerto serial y revisa el buffer cada 10 ms. Cuando hay datos, lee la línea, la
+separa por la coma y valida que hayan llegado exactamente dos partes y que ambas sean
+numéricas. Esa validación es necesaria porque al arrancar el buffer puede contener
+líneas cortadas a la mitad, que sin la comprobación harían fallar el nodo.
+
+Se eligió `Point` porque sus campos `x` e `y` corresponden de forma natural a los dos
+ejes del joystick y el mensaje se lee con claridad en `ros2 topic echo`. El tópico se
+nombró `/joystick_raw` para dejar explícito que transporta lecturas crudas del ADC y no
+velocidades ya calculadas. Conforme a lo solicitado, este nodo no envía nada a
+Turtlesim.
+
+### `turtle_controller.py`
+
+| Elemento | Valor |
+|---|---|
+| Nombre del nodo | `turtle_controller` |
+| Tópico al que se suscribe | `/joystick_raw` (`geometry_msgs/msg/Point`) |
+| Tópico que publica | `/turtle1/cmd_vel` (`geometry_msgs/msg/Twist`) |
+
+Es el nodo que hace la conversión. Por cada lectura recibida calcula una velocidad
+lineal y una angular, las arma en un mensaje `Twist` y lo publica al tópico que escucha
+Turtlesim.
+
+La conversión la realiza el método `normalizar()`, que recibe la lectura, el centro del
+eje y la velocidad máxima correspondiente, y devuelve la velocidad. El procedimiento es:
+
+1. Calcula la desviación respecto al centro: `valor - centro`.
+2. Si el valor absoluto de esa desviación es menor que la zona muerta, devuelve cero.
+3. En caso contrario, resta la zona muerta y divide entre el rango restante del lado
+   correspondiente, lo que da un factor entre 0 y 1.
+4. Multiplica ese factor por la velocidad máxima.
+
+Restar la zona muerta antes de escalar evita un salto: si no se hiciera, al salir de la
+zona muerta la velocidad brincaría de golpe a un valor distinto de cero en lugar de
+crecer de forma continua desde ahí. Esto es lo que garantiza el **control proporcional**
+que pide la actividad: la velocidad varía de manera continua según la inclinación, y no
+de forma encendido/apagado.
+
+**Inversión de signos.** Ambos ejes se invierten con un signo negativo:
+
+- El eje Y entrega 0 cuando la palanca va hacia adelante, que es el valor más bajo, pero
+  hacia adelante la tortuga debe avanzar. Sin la inversión retrocedería.
+- El eje X entrega 4095 hacia la derecha, pero en ROS un `angular.z` positivo gira en
+  sentido antihorario, es decir a la izquierda. Sin la inversión, mover la palanca a la
+  derecha giraría la tortuga a la izquierda.
+
+**Movimiento combinado.** Como cada eje se procesa por separado y ambos resultados se
+colocan en el mismo mensaje `Twist`, una inclinación simultánea en X y Y produce
+velocidad lineal y angular al mismo tiempo, sin que haga falta lógica adicional.
+
+## 5. Parámetros elegidos y su justificación
+
+### Límites de velocidad
+
+| Valor probado | Resultado |
+|---|---|
+| 1.0 | La tortuga responde con demasiada lentitud; cruzar la ventana toma un tiempo excesivo |
+| Superiores a 2.0 | La tortuga se desplaza tan rápido que alcanza el borde antes de poder reaccionar, y el giro impide apuntarla con precisión |
+| **2.0** | **Valor elegido**: respuesta ágil manteniendo el control |
+
+La ventana de Turtlesim mide aproximadamente 11 unidades de lado a lado. Con una
+velocidad lineal máxima de 2.0 la tortuga la recorre en poco más de cinco segundos, lo
+que resulta cómodo para maniobrar. Para la velocidad angular se usó el mismo valor, que
+permite una vuelta completa en unos tres segundos.
+
+### Zona muerta
+
+La zona muerta es un rango alrededor del centro dentro del cual la lectura se interpreta
+como cero. Es necesaria porque el ADC presenta fluctuaciones aun con el joystick en
+reposo, y porque el resorte no devuelve la palanca exactamente al mismo punto cada vez.
+
+| Valor probado | Resultado |
+|---|---|
+| 20 | En la terminal aparecían esporádicamente velocidades de 0.01 con la palanca en reposo. El movimiento no llegaba a percibirse en Turtlesim, pero el ruido del ADC sí atravesaba el filtro |
+| **100** | **Valor elegido**: las velocidades permanecen en 0.00 de forma constante con la palanca sin tocar |
+
+Se eligió 100, que es alrededor del 5% del recorrido de cada lado. Como en reposo el valor solo 
+varía unas 12 unidades, este margen es lo bastante amplio para cubrir esa variación. Tambien por que
+es una parte pequeña del recorrido total, así que no se pierde sensibilidad al mover la palanca
+
+## 6. Comandos utilizados
+
+Registro de los nuevos ejecutables en `setup.py`:
+
+```python
+entry_points={
+    'console_scripts': [
+        ...
+        'joystick_serial_pub.py = basics.joystick_serial_pub:main',
+        'turtle_controller.py = basics.turtle_controller:main',
+    ],
+},
+```
+
+Compilación:
+
+```bash
+cd ~/Documentos/SM_VictorM/robotics_ws
+colcon build
+ls install/basics/lib/basics/
+```
+
+Ejecución, con el entorno cargado en cada terminal:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/Documentos/SM_VictorM/robotics_ws/install/setup.bash
+```
+
+```bash
+# Terminal 1: simulador
+ros2 run turtlesim turtlesim_node
+
+# Terminal 2: publicador del joystick (abre el puerto serial)
+ros2 run basics joystick_serial_pub.py
+
+# Terminal 3: nodo de control
+ros2 run basics turtle_controller.py
+```
+
+Comprobación desde una cuarta terminal:
+
+```bash
+# Nodos activos: turtlesim, joystick_serial_pub y turtle_controller
+ros2 node list
+
+# Tópicos con su tipo de mensaje
+ros2 topic list -t
+
+# Valores crudos del joystick
+ros2 topic echo /joystick_raw
+
+# Velocidades enviadas a la tortuga
+ros2 topic echo /turtle1/cmd_vel
+
+# Publicadores y suscriptores de cada tópico
+ros2 topic info /joystick_raw
+ros2 topic info /turtle1/cmd_vel
+
+# Detalle del nodo de control
+ros2 node info /turtle_controller
+
+# Frecuencia real de publicación
+ros2 topic hz /joystick_raw
+
+# Grafo de comunicación
+ros2 run rqt_graph rqt_graph
+```
+
+En el grafo se observa la cadena completa: `/joystick_serial_pub` publica en
+`/joystick_raw`, `/turtle_controller` está suscrito a ese tópico y a su vez publica en
+`/turtle1/cmd_vel`, donde escucha `/turtlesim`.
+
+## 7. Problemas encontrados y soluciones
+
+**Las lecturas no cambiaban al mover el joystick.**
+Durante la primera prueba los cuatro movimientos entregaban los mismos valores. La causa
+fue un error al registrar las mediciones, no un fallo del circuito. Al repetir la prueba
+observando cada eje por separado se confirmó que ambos recorren el rango completo de 0 a
+4095.
+
+**El centro del joystick no coincidía con el punto medio teórico.**
+El ADC de 12 bits tiene un punto medio de 2048, pero el joystick reposa en 1890 y 1828.
+Usar 2048 como referencia habría provocado que la tortuga se desplazara sola. Se
+resolvió midiendo el reposo real de cada eje y usando esos valores como centro en el
+nodo de control.
+
+**El recorrido de la palanca no es simétrico respecto al centro.**
+Al no estar el reposo a la mitad del rango, un mismo divisor para ambos lados habría
+dado distinta velocidad máxima según la dirección. Se resolvió calculando el rango de
+cada lado por separado dentro del método `normalizar()`.
+
+**Los cambios no se reflejaban al ejecutar.**
+Tras modificar los valores de velocidad y recompilar, el comportamiento seguía igual. La
+causa es que `ros2 run` ejecuta la copia instalada en `install/`, y el proceso que ya
+está corriendo mantiene en memoria la versión con la que arrancó. Hay que copiar el
+archivo al paquete, recompilar y **reiniciar el nodo**.
+
+**Las pruebas de parámetros se mezclaban entre sí.**
+Al intentar cambiar velocidad y zona muerta en la misma compilación no era posible
+atribuir el resultado a uno u otro parámetro. Se resolvió probando una variable a la
+vez, dejando la otra fija en su valor de referencia.
+
+## 8. Evidencia en video
+
+**Enlace:** [Video de la actividad 4](https://drive.google.com/file/d/10Pt82b2CD7FWio6Xp_YW1JXTmUPyLWgp/view?usp=drive_link)
+
+## 9. Control de versiones
+
+| Commit | Contenido |
+|---|---|
+| 1 | Programa de Arduino con la lectura del joystick. |
+| 2 | Nodo publicador del joystick verificado. |
+| 3 | Verificación de recepción de datos en el nodo subscriptor. |
+| 4 | Ajuste final de límites de velocidad y zona muerta. |
+| 5 | Documentación completa en el README. |
