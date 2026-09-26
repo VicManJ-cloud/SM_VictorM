@@ -1056,3 +1056,141 @@ vez, dejando la otra fija en su valor de referencia.
 | 3 | Verificación de recepción de datos en el nodo subscriptor. |
 | 4 | Ajuste final de límites de velocidad y zona muerta. |
 | 5 | Documentación completa en el README. |
+
+
+
+
+
+
+
+
+
+
+
+---
+
+# Act5-Launch Publicador y publicador
+
+## 1. Descripción de la actividad
+
+En esta actividad se generó un archivo launch para ejecutar los dos nodos de la primera
+práctica, `velocity_publisher` y `velocity_subscriber`, desde una sola terminal en lugar
+de una por nodo.
+
+Un archivo launch es un script de Python que describe qué nodos deben arrancarse.
+`ros2 launch` lee esa descripción y lanza cada uno como un proceso independiente,
+mostrando todas las salidas en la misma terminal.
+
+## 2. Archivo generado
+
+### `velocity_system.launch.py`
+
+El archivo define la función `generate_launch_description()`, cuyo nombre es obligatorio
+porque es la que `ros2 launch` busca al ejecutar el archivo. Esa función devuelve un
+objeto `LaunchDescription` con la lista de nodos a lanzar.
+
+Cada nodo se declara con tres datos:
+
+| Parámetro | Valor | Significado |
+|---|---|---|
+| `package` | `basics` | Paquete donde vive el ejecutable |
+| `executable` | `velocity_publisher.py` / `velocity_subscriber.py` | Nombre registrado en `entry_points` |
+| `output` | `screen` | Envía los mensajes del logger a la terminal |
+
+El `executable` debe coincidir exactamente con el nombre declarado en `console_scripts`
+dentro de `setup.py`. En este repositorio los ejecutables se registraron conservando la
+extensión `.py`, por lo que el launch los invoca de esa forma.
+
+## 3. Registro en `setup.py`
+
+A diferencia de los nodos, el archivo launch no se declara en `entry_points` sino en
+`data_files`:
+
+```python
+data_files=[
+    ('share/ament_index/resource_index/packages',
+        ['resource/' + package_name]),
+    ('share/' + package_name, ['package.xml']),
+    ('share/' + package_name + '/launch', ['launch/velocity_system.launch.py']),
+],
+```
+
+La razón es que `entry_points` sirve para generar **ejecutables** a partir de una
+función `main`, mientras que el launch no es un programa sino un archivo de datos que
+`ros2 launch` lee. La línea agregada copia el archivo a `share/basics/launch/`, que es
+donde el comando lo busca. Sin ese registro el archivo existe en el código fuente pero
+`ros2 launch` no lo encuentra.
+
+## 4. Comandos utilizados
+
+Creación del directorio y el archivo:
+
+```bash
+cd ~/Documentos/SM_VictorM/robotics_ws/src/basics
+mkdir launch
+touch launch/velocity_system.launch.py
+```
+
+Compilación y ejecución:
+
+```bash
+cd ~/Documentos/SM_VictorM/robotics_ws
+colcon build
+source install/setup.bash
+ros2 launch basics velocity_system.launch.py
+```
+
+Comprobación desde una segunda terminal:
+
+```bash
+# Nodos activos: /velocity_publisher y /velocity_subscriber
+ros2 node list
+
+# Tópicos con su tipo de mensaje
+ros2 topic list -t
+
+# Publicadores y suscriptores conectados
+ros2 topic info /velocity
+
+# Contenido de los mensajes
+ros2 topic echo /velocity
+
+# Grafo de comunicación
+ros2 run rqt_graph rqt_graph
+```
+
+## 5. Observaciones del funcionamiento
+
+Al ejecutar el launch, la terminal reporta el identificador de proceso de cada nodo:
+
+```
+[INFO] [velocity_publisher-1]: process started with pid [7698]
+[INFO] [velocity_subscriber-2]: process started with pid [7699]
+```
+
+Cada nodo se lanza como un proceso independiente del sistema operativo. Como ambas
+salidas comparten la misma terminal, cada línea se antepone con el nombre del nodo y su
+número de orden para distinguir cuál la escribió. Un `Ctrl+C` detiene los dos a la vez,
+porque `ros2 launch` reenvía la señal a todos los procesos que administra.
+
+El grafo obtenido es igual al de la primera práctica: `velocity_publisher` publicando
+en `/velocity` y `velocity_subscriber` suscrito a ese tópico. Esto nos confirma que el
+launch no modifica la arquitectura del sistema; los nodos siguen siendo procesos
+independientes que se comunican por un tópico y no tienen forma de saber cómo fueron
+arrancados. Lo único que cambia es el mecanismo de como se ejecutan.
+
+La ventaja se ve conforme hay mas nodos. Con dos nodos la diferencia es poca,
+pero un sistema robótico completo podria tener más nodos entre sensores, control y
+navegación, y abrir una terminal para cada no sería practico. El launch permite
+describir el sistema una sola vez y levantarlo con un único comando.
+
+## 6. Evidencia en video
+
+**Enlace:** [Video del archivo launch](https://drive.google.com/file/d/1g1Np2wFy1dw6wDU_ae-GWLHqdYgOaUYf/view?usp=drive_link)
+
+## 7. Control de versiones
+
+| Commit | Contenido |
+|---|---|
+| 1 | Archivo launch funcionando. |
+| 2 | Documentación del ejemplo del launch. |
