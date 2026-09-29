@@ -1,3 +1,128 @@
+# Paquete `basics`
+
+**Alumno:** Victor Manuel Jimenez Gonzalez
+
+**Entorno:** ROS 2 Jazzy Jalisco sobre Ubuntu 24.04
+
+---
+
+## Descripción general del paquete
+
+`basics` es un paquete de ROS 2 de tipo `ament_python` que reúne todos los ejercicios
+desarrollados a lo largo del curso. Agrupa desde la comunicación básica entre dos nodos
+hasta el control de la tortuga de Turtlesim con un joystick físico conectado a una
+tarjeta ESP32.
+
+El paquete cubre tres temas que se van construyendo uno sobre otro:
+
+1. **Comunicación entre nodos**: publicador y suscriptor intercambiando datos por un
+   tópico, primero con un valor simple y después con comandos de movimiento.
+2. **Comunicación con hardware**: nodos que traducen entre los tópicos de ROS 2 y el
+   puerto serial de una ESP32, en ambas direcciones.
+3. **Integración**: un sistema completo que lee un joystick físico y lo convierte en
+   movimiento de la tortuga, más archivos launch para levantar varios nodos a la vez.
+
+### Estructura
+
+```
+basics/
+├── README.md              # esta documentación
+├── package.xml            # metadatos y dependencias del paquete
+├── setup.py               # registro de ejecutables y archivos a instalar
+├── setup.cfg
+├── resource/              # marcador del paquete para el índice de ament
+├── basics/                # nodos de ROS 2 en Python
+├── esp32_basics/          # sketches de Arduino y scripts de Python sin ROS
+└── launch/                # archivos launch
+```
+
+### Nodos del paquete
+
+| Archivo | Nodo | Tópico | Tipo de mensaje | Función |
+|---|---|---|---|---|
+| `velocity_publisher.py` | `velocity_publisher` | publica `/velocity` | `std_msgs/Float32` | Publica una rampa de velocidad |
+| `velocity_subscriber.py` | `velocity_subscriber` | escucha `/velocity` | `std_msgs/Float32` | Imprime el valor recibido |
+| `velocity_turtle_pub.py` | `velocity_turtle_publisher` | publica `/turtle1/cmd_vel` | `geometry_msgs/Twist` | Mueve la tortuga con una rampa |
+| `velocity_turtle_subs.py` | `velocity_turtle_subscriber` | escucha `/turtle1/cmd_vel` | `geometry_msgs/Twist` | Imprime la velocidad enviada |
+| `led_blink.py` | `led_blink` | publica `/led_command` | `std_msgs/Int32` | Alterna entre 1 y 0 cada segundo |
+| `serial_bridge.py` | `serial_bridge` | escucha `/led_command` | `std_msgs/Int32` | Traduce el comando al puerto serial |
+| `analog_serial_pub.py` | `analog_serial_pub` | publica `/analog` | `std_msgs/Int32` | Lee el potenciómetro del puerto serial |
+| `analog_subs.py` | `analog_subscriber` | escucha `/analog` | `std_msgs/Int32` | Imprime la lectura del ADC |
+| `joystick_serial_pub.py` | `joystick_serial_pub` | publica `/joystick_raw` | `geometry_msgs/Point` | Lee los dos ejes del joystick |
+| `turtle_controller.py` | `turtle_controller` | escucha `/joystick_raw`, publica `/turtle1/cmd_vel` | `Point` → `Twist` | Convierte las lecturas en velocidades |
+
+### Firmware y scripts de la ESP32
+
+En `esp32_basics/` está el código que no corre en ROS 2:
+
+| Archivo | Descripción |
+|---|---|
+| `LED_Serial/LED_Serial.ino` | Enciende y apaga el LED según el carácter recibido |
+| `ADC_Pot/ADC_Pot.ino` | Lee un potenciómetro y envía el valor por el puerto serial |
+| `joystick/joystick.ino` | Lee los dos ejes del joystick y los envía separados por coma |
+| `serial_led.py` | Prueba del LED desde Python, sin ROS |
+| `serial_pot.py` | Prueba del potenciómetro desde Python, sin ROS |
+
+Los sketches se cargan desde el Arduino IDE; los scripts de Python se ejecutan
+directamente con `python3` y sirven para verificar el hardware antes de involucrar a
+ROS 2.
+
+### Archivos launch
+
+| Archivo | Nodos que levanta |
+|---|---|
+| `velocity_system.launch.py` | `velocity_publisher` y `velocity_subscriber` |
+| `turtle_joy_controller.launch.py` | `turtlesim`, `joystick_serial_pub` y `turtle_controller` |
+
+### Compilación y uso
+
+El paquete vive en el workspace `Robotics_ws`:
+
+```bash
+cd ~/Documentos/SM_VictorM/Robotics_ws
+colcon build
+source install/setup.bash
+```
+
+Ese `source` hay que ejecutarlo en cada terminal nueva, junto con el del entorno base de
+ROS 2:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/Documentos/SM_VictorM/Robotics_ws/install/setup.bash
+```
+
+Los nodos se ejecutan de forma individual con `ros2 run`:
+
+```bash
+ros2 run basics <nombre_del_ejecutable>
+```
+
+o en conjunto con `ros2 launch`:
+
+```bash
+ros2 launch basics <nombre_del_launch>
+```
+
+### Dependencias
+
+- `rclpy`, la biblioteca cliente de ROS 2 para Python
+- `std_msgs` y `geometry_msgs`, para los tipos de mensaje utilizados
+- `turtlesim`, para los ejercicios de simulación
+- `pyserial`, para la comunicación con la ESP32 (`sudo apt install python3-serial`)
+
+Los ejercicios que usan la ESP32 requieren además que el usuario pertenezca al grupo
+`dialout` para poder escribir en el puerto serial.
+
+---
+
+## Documentación por actividad
+
+Las secciones siguientes documentan cada actividad en el orden en que se desarrollaron.
+
+
+
+
 # Práctica: Publicador y Suscriptor en ROS 2
 
 **Alumno:** Victor Manuel Jimenez Gonzalez
@@ -1194,3 +1319,183 @@ describir el sistema una sola vez y levantarlo con un único comando.
 |---|---|
 | 1 | Archivo launch funcionando. |
 | 2 | Documentación del ejemplo del launch. |
+
+
+
+---
+
+# Act6-Launch turtle_joy_controller
+
+## 1. Descripción de la actividad
+
+En esta actividad se generó un archivo launch que ejecuta los tres nodos desarrollados
+en la actividad del joystick, y se reestructuró el repositorio para que el paquete
+`basics` quede completo dentro de `Robotics_ws/src`.
+
+Con el launch, el sistema completo (simulador, lectura del joystick y control de la
+tortuga) se levanta con un solo comando en lugar de tres terminales separadas.
+
+## 2. Reestructura del repositorio
+
+Hasta esta actividad el repositorio tenía los archivos de entrega separados del paquete
+de ROS 2: los nodos vivían sueltos en `Robotics_ws/src`, mientras que el paquete con su
+`package.xml` y `setup.py` estaba en un segundo workspace llamado `robotics_ws`. Eso
+obligaba a mantener dos copias de cada archivo y a copiarlas manualmente antes de cada
+compilación.
+
+La reestructura consistió en mover el paquete completo a `Robotics_ws/src/basics`, de
+modo que ahora existe un solo workspace y una sola copia de cada archivo. La estructura
+quedó así:
+
+```
+Robotics_ws/src/basics/
+├── README.md
+├── package.xml
+├── setup.py
+├── setup.cfg
+├── resource/
+├── basics/          # los diez nodos de ROS 2
+├── esp32_basics/    # sketches de Arduino y scripts sin ROS
+└── launch/          # los dos archivos launch
+```
+
+El directorio `colmibot_firmware` desapareció: su contenido (`esp32_basics`) pasó a
+colgar directamente de `basics`.
+
+## 3. El archivo launch
+
+### `turtle_joy_controller.launch.py`
+
+Sigue la misma estructura que el launch de la actividad anterior: define la función
+`generate_launch_description()`, que devuelve un objeto `LaunchDescription` con la lista
+de nodos a ejecutar.
+
+| Nodo | Paquete | Ejecutable |
+|---|---|---|
+| Simulador | `turtlesim` | `turtlesim_node` |
+| Publicador del joystick | `basics` | `joystick_serial_pub.py` |
+| Nodo de control | `basics` | `turtle_controller.py` |
+
+La diferencia respecto al launch anterior es que aquí uno de los nodos pertenece a un
+paquete distinto: `turtlesim` no forma parte de `basics`, sino que viene con la
+instalación de ROS 2. Esto muestra que un launch puede combinar nodos de cualquier
+paquete disponible en el entorno, no solo del propio.
+
+Los tres nodos se lanzan como procesos independientes y sus salidas comparten la
+terminal, cada una con el prefijo del nodo que la escribió. Un `Ctrl+C` detiene los tres
+a la vez.
+
+### Registro en `setup.py`
+
+El archivo se agregó a la misma entrada de `data_files` que instala el launch anterior:
+
+```python
+data_files=[
+    ('share/ament_index/resource_index/packages',
+        ['resource/' + package_name]),
+    ('share/' + package_name, ['package.xml']),
+    ('share/' + package_name + '/launch', [
+        'launch/velocity_system.launch.py',
+        'launch/turtle_joy_controller.launch.py',
+    ]),
+],
+```
+
+Los archivos launch se declaran en `data_files` y no en `entry_points`, porque no son
+ejecutables generados a partir de una función `main`, sino archivos que `ros2 launch`
+lee. La entrada los copia a `share/basics/launch/`, que es donde el comando los busca.
+
+## 4. Comandos utilizados
+
+Compilación:
+
+```bash
+cd ~/Documentos/SM_VictorM/Robotics_ws
+colcon build
+source install/setup.bash
+
+# Verificar que los dos launch quedaron instalados
+ls install/basics/share/basics/launch/
+```
+
+Ejecución del sistema completo:
+
+```bash
+ros2 launch basics turtle_joy_controller.launch.py
+```
+
+Comprobación desde una segunda terminal:
+
+```bash
+# Nodos activos: /turtlesim, /joystick_serial_pub y /turtle_controller
+ros2 node list
+
+# Tópicos con su tipo de mensaje
+ros2 topic list -t
+
+# Publicadores y suscriptores de cada tópico
+ros2 topic info /joystick_raw
+ros2 topic info /turtle1/cmd_vel
+
+# Detalle del nodo de control, que publica y se suscribe a la vez
+ros2 node info /turtle_controller
+
+# Valores crudos del joystick y velocidades resultantes
+ros2 topic echo /joystick_raw
+ros2 topic echo /turtle1/cmd_vel
+
+# Grafo de comunicación
+ros2 run rqt_graph rqt_graph
+```
+
+En el grafo se observa la cadena completa: `/joystick_serial_pub` publica en
+`/joystick_raw`, `/turtle_controller` está suscrito a ese tópico y a su vez publica en
+`/turtle1/cmd_vel`, donde escucha `/turtlesim`. El grafo es idéntico al que se obtenía
+levantando los nodos por separado, lo que confirma que el launch no altera la
+arquitectura del sistema: solo cambia la forma de arrancarlo.
+
+## 5. Problemas encontrados y soluciones
+
+**Conflicto de nombres durante la reestructura.**
+Al intentar mover el paquete a `Robotics_ws/src/basics`, esa ruta ya estaba ocupada por
+la carpeta con los nodos sueltos. Se resolvió renombrando temporalmente la carpeta
+existente, moviendo el paquete a su lugar, comparando ambas copias con `diff -r` para
+confirmar que eran idénticas, y eliminando después la temporal.
+
+**Carpeta `launch` duplicada.**
+La reestructura dejó dos carpetas `launch`: una en `src/` y otra dentro del paquete,
+ambas con el mismo archivo. Se verificó con `diff` que fueran idénticas y se eliminó la
+que quedaba fuera del paquete.
+
+**El `.gitignore` apuntaba al workspace anterior.**
+Las reglas estaban escritas como `robotics_ws/build/`, con la ruta del workspace viejo.
+Al compilar en la ubicación nueva, esas reglas dejaban de aplicar. Ya existían además
+reglas sin ruta (`build/`, `install/`, `log/`), que sí cubren cualquier nivel, por lo
+que la protección se mantuvo. Conviene usar las reglas sin ruta para que sobrevivan a
+este tipo de cambios.
+
+**Los borrados del workspace anterior no se registraban.**
+Al hacer `git add -A Robotics_ws` solo se tomaba la carpeta nueva, de modo que git
+seguía considerando que los archivos existían en la ruta anterior. Se resolvió
+ejecutando también `git add -A robotics_ws` para registrar las eliminaciones antes de
+confirmar el commit.
+
+**La tortuga se movía sola al cambiar de joystick.**
+Al usar un módulo distinto al original, la tortuga se desplazaba sin que nadie tocara la
+palanca. La causa es que los valores de centro configurados en `turtle_controller.py`
+(1890 y 1828) corresponden a la calibración del módulo original: cada joystick reposa en
+un punto distinto, y la diferencia entre ese punto y el centro configurado se interpreta
+como inclinación. Al volver al módulo original el comportamiento se corrigió. Si se
+cambia de joystick hay que medir de nuevo el reposo de cada eje y actualizar esos
+valores; el centro no es una constante sino una medición de cada módulo en particular.
+
+## 6. Evidencia en video
+
+**Enlace:** [Video de la actividad 6](https://drive.google.com/file/d/1BX7PiEAWe_drDEokMGtsoJwgEIydfNXX/view?usp=drive_link)
+
+## 7. Control de versiones
+
+| Commit | Contenido |
+|---|---|
+| 1 | Reestructura del paquete y launch de los tres nodos funcionando. |
+| 2 | Documentación de la actividad. |
